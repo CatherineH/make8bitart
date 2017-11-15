@@ -104,8 +104,13 @@
     $colorCustomTools : {
       clearPalette: $('#color-custom-tools .clear'),
       importPalette: $('#color-custom-tools .import')
-    }
+    },
+    $email :$('#email'),
+    $authorized: $('#authorized'),
+    $authorizedText: $('#authorized-text')
   };
+
+  var ledMatrix = {w: 20, h:12};
 
   var mode = {
     dropper : false,
@@ -617,7 +622,6 @@
   };
 
   var generateSelection = function(e, mode) {
-    console.log("in generateSelection", e);
 
     if(mode === action.led){
       rectangleSelection.endX = rectangleSelection.startX + rectangleSelection.w;
@@ -636,16 +640,24 @@
     // set dimensions and draw based on selection
     var width = Math.abs(rectangleSelection.endX - rectangleSelection.startX);
     var height = Math.abs(rectangleSelection.endY - rectangleSelection.startY);
-    $tempCanvas[0].width = width;
-    $tempCanvas[0].height = height;
+    if(mode === action.led){
+      $tempCanvas[0].width = ledMatrix.w;
+      $tempCanvas[0].height = ledMatrix.h;
+    } else {
+      $tempCanvas[0].width = width;
+      $tempCanvas[0].height = height;
+    }
 
     var startX = Math.min( rectangleSelection.startX, rectangleSelection.endX );
     var startY = Math.min( rectangleSelection.startY, rectangleSelection.endY );
 
     if ( width && height ) {
-      tempCtx.drawImage(DOM.$canvas[0], startX, startY, width, height, 0, 0, width, height);
+      if(mode === action.led){
+        tempCtx.drawImage(DOM.$canvas[0], startX, startY, width, height, 0, 0, ledMatrix.w, ledMatrix.h);
+      } else {
+        tempCtx.drawImage(DOM.$canvas[0], startX, startY, width, height, 0, 0, width, height);
+      }
       var img = $tempCanvas[0].toDataURL('image/png');
-      console.log("generateSelection save img", img);
 
       if ( mode === action.save ) {
         displayFinishedArt(img);
@@ -697,8 +709,8 @@
   };
 
   var drawLEDWindow = function(e){
-    rectangleSelection.w = 20*pixel.size;
-    rectangleSelection.h = 12*pixel.size;
+    rectangleSelection.w = ledMatrix.w*pixel.size;
+    rectangleSelection.h = ledMatrix.h*pixel.size;
     console.log(rectangleSelection.w, rectangleSelection.h, pixel.size)
     overlayRect();
   };
@@ -1420,6 +1432,18 @@
   DOM.$buttonExportPXON.click(exportPXON);
   // send to LEDS
   DOM.$buttonSendLEDS.click(sendToLEDS);
+  var profile;
+  $.get('profile', function(data){
+    profile = JSON.parse(data);
+    console.log('in get profile, data is: ', profile.auth);
+    DOM.$email.html('hi '+profile.user)
+    if(profile.auth){
+      console.log(DOM.$authorized)
+      DOM.$authorized.attr('title', 'authorized');
+      DOM.$authorizedText.html('you can send drawings to the LED matrix');
+    }
+  });
+
 
   // hide save modal container if exit button clicked
   DOM.$modalExit.click(function() {

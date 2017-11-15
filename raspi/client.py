@@ -1,32 +1,34 @@
-#from neopixel import Adafruit_NeoPixel, Color, ws
+from neopixel import Adafruit_NeoPixel, Color, ws
 import urllib
 from os.path import dirname, join
 from time import sleep
-
+from io import BytesIO
+from PIL import Image
 from requests import session
+from base64 import b64decode
 
 token = open(join(dirname(dirname(__file__)), 'token'), "r").read(-1)
 
-
-# Main program logic follows:
 if __name__ == '__main__':
-    '''
-    # Create NeoPixel object with appropriate configuration.
-    strip = Adafruit_NeoPixel(240, 18, 800000, 5, False, LED_BRIGHTNESS, 0, 
-                              ws.WS2811_STRIP_GRB)
-    # Intialize the library (must be called once before other functions).
+    strip = Adafruit_NeoPixel(240, 18, 800000, 5, False, 3, 0, ws.WS2811_STRIP_GRB)
     strip.begin()
-    
-    
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, color)
-        strip.show()
-    '''
     base_url = "http://localhost:9999/save"
     _session = session()
     while True:
         response = _session.get(base_url, headers={"token": token})
         assert response.status_code == 200
-        url = urllib.unquote(response.text).decode('utf8')
-        print(url)
+        data = response.text.replace("data:image/png;base64,", "")
+        data = b64decode(data)
+
+        fh = open("temp.png", "w")
+        fh.write(data)
+        fh.close()
+
+        img = Image.open("temp.png")
+        img_data = list(img.getdata())
+        for i in range(strip.numPixels()):
+            color = Color(img_data[i][0], img_data[i][1], img_data[i][2])
+            strip.setPixelColor(i, color)
+        strip.show()
+
         sleep(10)

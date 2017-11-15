@@ -24,10 +24,8 @@ decorator = OAuth2DecoratorFromClientSecrets(join(foldername, 'client_secrets.js
 def require_profile(func):
     def wrap(clss, *args, **kwargs):
         contents = open(join(foldername, 'token'), "r").read(-1)
-        logging.info("tokens %s %s "% (contents, clss.request.headers.get('token')))
         token = clss.request.headers.get('token') == contents
         profile = users.get_current_user()
-        logging.info(str(token)+" "+str(profile))
         if profile or token:
             return func(clss, *args, **kwargs)
         elif not profile:
@@ -79,9 +77,32 @@ class Drawing(db.Model):
     data = db.TextProperty()
     time = db.DateTimeProperty(auto_now_add=True)
 
+class Profile(db.Model):
+    email = db.StringProperty()
+    led_auth = db.BooleanProperty()
+
+def check_auth():
+    # check to see whether the user is authorized to handle led data
+    email = str(users.get_current_user())
+    profile = Profile.all().filter('email =', email).get()
+    if not profile:
+        profile = Profile(email=email, led_auth=False)
+        profile.put()
+        return False
+    else:
+        if not profile.led_auth:
+            return False
+        else:
+            return True
+
+
+
 class SavePXON(webapp2.RequestHandler):
     @require_profile
     def post(self):
+        if not check_auth():
+            self.error(405)
+            return
         pix_data = self.request.body
         pd = Drawing(data=pix_data)
         pd.put()
@@ -89,6 +110,9 @@ class SavePXON(webapp2.RequestHandler):
 
     @require_profile
     def get(self):
+        if not check_auth():
+            self.error(405)
+            return
         pix_data = memcache.get('latest')
         if pix_data:
             logging.info(pix_data)
@@ -98,8 +122,15 @@ class SavePXON(webapp2.RequestHandler):
             self.response.out.write(pix_data)
 
 
+class ProfileInfo(webapp2.RequestHandler):
+    @require_profile
+    def get(self):
+        self.response.out.write(dumps({'user': str(users.get_current_user()),
+                                       'auth': check_auth()}))
+
 app = webapp2.WSGIApplication([
     (decorator.callback_path, decorator.callback_handler()),
     ('/', DrawPage),
+    ('/profile', ProfileInfo),
     ('/save', SavePXON)
 ], debug=False)  # change to True to get responses w/out error.html
