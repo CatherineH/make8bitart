@@ -1,5 +1,12 @@
 # make8bitart
 
+This is my (CatherineH)'s modification of
+[@jennschiffer](http://twitter.com/jennschiffer)'s make8bitart to display pixel art on a matrix of neopixels through the web.
+- client/client.py runs on a raspberry pi with pin 18 connected to a 240 neopixel long strand
+- main.py runs on Google AppEngine
+
+In theory, it should be possible to make this purely in JavaScript through Node's ability to wrap C objects and running Node.js on appengine, but I (Catherine) am lazy and more familiar with Python.
+
 [make8bitart.com](http://make8bitart.com) is a web-based pixel art application that's super fun and easy to use!
 
 ## install

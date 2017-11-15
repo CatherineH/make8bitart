@@ -1,0 +1,41 @@
+runtime: python27
+api_version: 1
+threadsafe: true
+
+builtins:
+- remote_api: on
+
+handlers:
+
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+
+- url: /static
+  static_dir: static
+  application_readable: true
+  secure: always
+
+- url: /admin(/[a-zA-Z0-9._-]*)?
+  script: admin.app
+  login: admin
+  secure: always
+
+- url: /.*
+  script: main.app
+  secure: always
+
+libraries:
+- name: webapp2
+  version: "2.5.2"
+
+- name: jinja2
+  version: latest
+
+- name: django
+  version: "1.4"
+
+skip_files:
+- raspi
+
+

@@ -66,6 +66,7 @@
     $buttonOpenLocal : $('#open-local'),
     $buttonImportPXON : $('#import-pxon'),
     $buttonExportPXON : $('#export-pxon'),
+    $buttonSendLEDS : $('#send-to-leds'),
 
     $pixelSizeInput : $('.pixel-size-input'),
     $pixelSizeDemoDiv : $('#pixel-size-demo'),
@@ -111,7 +112,8 @@
     drawing : false,
     save : false,
     paint : false,
-    trill : true
+    trill : true,
+    led: false
   };
 
   var action = {
@@ -120,6 +122,7 @@
     cut : 'cut',
     paste : 'paste',
     save : 'save',
+    led: 'led',
     index : 0
   };
 
@@ -543,6 +546,9 @@
     else if ( mode.paste ) {
       DOM.$pasteInstructions.addClass(classes.hidden);
     }
+    else if ( mode.led ){
+      console.log()
+    }
 
     for (var prop in mode) {
       if ( mode.hasOwnProperty(prop) ){
@@ -611,8 +617,16 @@
   };
 
   var generateSelection = function(e, mode) {
-    rectangleSelection.endX = roundToNearestPixel(e.pageX);
-    rectangleSelection.endY = roundToNearestPixel(e.pageY);
+    console.log("in generateSelection", e);
+
+    if(mode === action.led){
+      rectangleSelection.endX = rectangleSelection.startX + rectangleSelection.w;
+      rectangleSelection.endY = rectangleSelection.startY + rectangleSelection.h;
+    } else {
+      rectangleSelection.endX = roundToNearestPixel(e.pageX);
+      rectangleSelection.endY = roundToNearestPixel(e.pageY);
+    }
+    console.log(rectangleSelection)
 
     // temporary canvas to save image
     DOM.$body.append('<canvas id="' + classes.selectionCanvas + '"></canvas>');
@@ -631,11 +645,14 @@
     if ( width && height ) {
       tempCtx.drawImage(DOM.$canvas[0], startX, startY, width, height, 0, 0, width, height);
       var img = $tempCanvas[0].toDataURL('image/png');
+      console.log("generateSelection save img", img);
 
       if ( mode === action.save ) {
         displayFinishedArt(img);
         DOM.$buttonSaveSelection.click();
         DOM.$saveModalContainer.removeClass(classes.hidden);
+      } else if (mode === action.led){
+        $.post("save", img);
       }
       else {
         clipboard = new Image();
@@ -666,14 +683,24 @@
     // remove tempCanvas
     $tempCanvas.remove();
   };
-
-  var drawSelection = function(e) {
-    rectangleSelection.w = roundToNearestPixel((e.pageX - this.offsetLeft) - rectangleSelection.startX);
-    rectangleSelection.h = roundToNearestPixel((e.pageY - this.offsetTop) - rectangleSelection.startY);
+  var overlayRect = function(){
     ctxOverlay.clearRect(0,0,DOM.$overlay.width(),DOM.$overlay.height());
     ctxOverlay.fillStyle = 'rgba(0,0,0,.5)';
     ctxOverlay.fillRect(0,0,DOM.$overlay.width(),DOM.$overlay.height());
     ctxOverlay.clearRect(rectangleSelection.startX, rectangleSelection.startY, rectangleSelection.w, rectangleSelection.h);
+  };
+
+  var drawSelection = function(e) {
+    rectangleSelection.w = roundToNearestPixel((e.pageX - this.offsetLeft) - rectangleSelection.startX);
+    rectangleSelection.h = roundToNearestPixel((e.pageY - this.offsetTop) - rectangleSelection.startY);
+    overlayRect();
+  };
+
+  var drawLEDWindow = function(e){
+    rectangleSelection.w = 20*pixel.size;
+    rectangleSelection.h = 12*pixel.size;
+    console.log(rectangleSelection.w, rectangleSelection.h, pixel.size)
+    overlayRect();
   };
 
   var displayFinishedArt = function(src) {
@@ -927,6 +954,12 @@
   };
 
   var exportPXON = function(e) {
+    formatPXON();
+    // export pxon in new window
+    window.open('data:text/json,' + encodeURIComponent(JSON.stringify(formatPXON())), '_blank');
+  };
+
+  var formatPXON = function() {
     // FUTURE: show modal for form
     /*pxon.exif.artist = $('.exif.artist').val();
     pxon.exif.imageDescription = $('.exif.imageDescription').val();
@@ -940,9 +973,29 @@
 
     // pxif
     pxon.pxif.pixels = drawHistory;
+  };
 
-    // export pxon in new window
-    window.open('data:text/json,' + encodeURIComponent(JSON.stringify(pxon)), '_blank');
+  var sendToLEDS = function(e){
+    console.log("sendToLEDS", mode.led)
+    if ( mode.led ) {
+      mode.led = false;
+      DOM.$saveInstruction.slideUp();
+      $(this).val(copy.selectionOn);
+      DOM.$overlay.addClass(classes.hidden);
+      // Save the current drawing in pxon format so that it can be served to the hardware client
+      console.log("sendToLEDs", JSON.stringify(drawHistory))
+      //$.post("save", JSON.stringify(drawHistory));
+    }
+    else {
+      resetModes();
+      mode.led = true;
+      console.log("sendToLEDS led", mode.led)
+      DOM.$saveInstruction.slideDown();
+      $(this).val(copy.selectionOff);
+      ctxOverlay.fillRect(0,0,DOM.$overlay.width(),DOM.$overlay.height());
+      DOM.$overlay.removeClass(classes.hidden);
+    }
+
   };
 
 
@@ -951,6 +1004,7 @@
   /* general */
 
   var onMouseDown = function(e) {
+    console.log("onMouseDown", mode);
     e.preventDefault();
 
     if ( e.which === 3 ) {
@@ -988,7 +1042,7 @@
 
       DOM.$paste.click();
     }
-    else if ( !mode.save && !mode.copy && !mode.cut ) {
+    else if ( !mode.save && !mode.copy && !mode.cut && !mode.led ) {
       // reset history
       undoRedoHistory = undoRedoHistory.slice(0, historyPointer+1);
       DOM.$redo.attr('disabled','disabled');
@@ -1022,6 +1076,14 @@
       }
 
     }
+    else if (mode.led){
+      console.log("on Mouse down led")
+      rectangleSelection = {};
+      rectangleSelection.startX = roundToNearestPixel(e.pageX - this.offsetLeft);
+      rectangleSelection.startY = roundToNearestPixel(e.pageY - this.offsetTop);
+      DOM.$overlay.on('mousemove', drawLEDWindow);
+
+    }
     else {
       // overlay stuff
       rectangleSelection = {};
@@ -1040,7 +1102,7 @@
       return;
     }
 
-    if ( !mode.save && !mode.copy && !mode.cut ) {
+    if ( !mode.save && !mode.copy && !mode.cut && !mode.led) {
       DOM.$canvas.off('mousemove');
       mode.drawing = false;
       drawPathId = null;
@@ -1059,6 +1121,16 @@
       }
       else if ( mode.cut ) {
         generateSelection(e, 'cut');
+      }
+      else if (mode.led) {
+        generateSelection(e, 'led');
+        /*
+        drawHistory = drawHistory.filter(item => rectangleSelection.startX <=item.x &&
+            rectangleSelection.startX + rectangleSelection.w >item.x &&
+            rectangleSelection.startY <=item.y &&
+            rectangleSelection.startY + rectangleSelection.h >item.y );
+        */
+        sendToLEDS();
       }
     }
   };
@@ -1346,6 +1418,8 @@
 
   // export pxon
   DOM.$buttonExportPXON.click(exportPXON);
+  // send to LEDS
+  DOM.$buttonSendLEDS.click(sendToLEDS);
 
   // hide save modal container if exit button clicked
   DOM.$modalExit.click(function() {

@@ -3,3 +3,11 @@ tweet8bitart
 revisit
 node_modules
 .htaccess
+lib
+client_secrets.json
+token
+*.pyc
+# pycharm generated
+.idea
+#appengine datastore
+test_datastore
